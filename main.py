@@ -62,7 +62,7 @@ class Node:
         BOARD[i][self.x] = "|" if self.bridges[dir1] == 1 else "H"
 
     MOVES.append(Move(self.x, self.y, self.neighbors[dir1].x, self.neighbors[dir1].y, count))
-    debug(MOVES[-1])
+    print(MOVES[-1])
     printBoard()
 
   def hasNeighbor(self, dir):
@@ -162,8 +162,6 @@ def getBoardHTML(url, height, width):
     # guaranteed to be integer values divisible by 18 (node distance)
     y = int(int(style.split("top: ")[1].split("px;")[0]) / NODE_DISTANCE)
     x = int(int(style.split("left: ")[1].split("px;")[0]) / NODE_DISTANCE)
-    print(x)
-    print(y)
 
     left = getLeftNeighbor(x, y)
     top = getTopNeighbor(x, y)
@@ -201,7 +199,6 @@ def solve():
               finishNode(node)
               dontDirectConnect1Or2Nodes(node)
               addPartialBridgesToNode(node)
-              # addPartialBridgesToOddNode(node)
     # Ran after guaranteed checks
     print("board stopped changing")
     pathFound = False
@@ -226,7 +223,7 @@ def checkForContinuity(node):
       possibleConnections.append(dir)
 
   for connectionDir in possibleConnections:
-    debug(f"testing continuity on {node}")
+    print(f"testing continuity on {node}")
     node.connect(connectionDir, getInverseDirection(connectionDir), 1)
 
     emptyNodeFound = False
@@ -256,7 +253,7 @@ def checkForContinuity(node):
       possibleConnections.remove(connectionDir)
 
   if len(possibleConnections) == 1:
-    debug(f"adding for continuity: {node}")
+    print(f"adding for continuity: {node}")
     node.connect(possibleConnections[0], getInverseDirection(possibleConnections[0]), 1)
     return True
   return False
@@ -269,49 +266,20 @@ def dontDirectConnect1Or2Nodes(node):
   if (node.originalValue != 1 or node.value != 1) and (node.originalValue != 2 or node.value != 2): # pure 2
     return
 
-  # print("HERE")
-  # print(node)
   otherNeighbors = []
   for dir in DIRECTIONS:
     if node.hasNeighbor(dir):
-
-      # print(node.neighbors[dir].originalValue)
-      # print(node.neighbors[dir].value)
       if node.neighbors[dir].originalValue != node.originalValue or node.neighbors[dir].value != node.originalValue:
         otherNeighbors.append(dir)
 
-  # print(otherNeighbors)
-
   if len(otherNeighbors) == 1:
-    debug(f"connecting 1 to only possible {node}")
+    print(f"connecting 1 to only possible {node}")
     node.connect(otherNeighbors[0], getInverseDirection(otherNeighbors[0]), 1)
     return True
   return False
 
-
-# Should connect all these nodes with a 1 bridge, repeats
-# similar logic for any other odd nodes since they behave the         3 _ 3
-# same for different numbers of neighbors (7 has guaranteed 1         _
-# nodes on all 4 sides)                                               3
-def addPartialBridgesToOddNode(node: Node):
-  if not isinstance(node, Node) or (node.value != 1 and node.value != 3 and node.value != 5 and node.value != 7):
-    return
-  bridgesToBuild = []
-
-  for dir in DIRECTIONS:
-    if node.hasNeighbor(dir) and node.neighbors[dir].value > 0 and node.bridges[dir] < 2:
-      bridgesToBuild.append(dir)
-
-  if len(bridgesToBuild) == int(node.value / 2 + 1):
-    for dir in bridgesToBuild:
-      node.connect(dir, getInverseDirection(dir), 1)
-    return True
-  return False
-
 def addPartialBridgesToNode(node: Node):
-  if not isinstance(node, Node) or node.value == 0:
-  #  or (node.originalValue != 1 and node.originalValue != 3 and node.originalValue != 5 and node.originalValue != 7):
-    return
+  if not isinstance(node, Node) or node.value == 0: return
   bridgesToBuild = {}
 
   for dir in DIRECTIONS:
@@ -319,27 +287,19 @@ def addPartialBridgesToNode(node: Node):
       bridgesToBuild[dir] = min(min(2, node.neighbors[dir].value), 2 - node.bridges[dir])
 
   print(bridgesToBuild)
-  # originalValue = node.value
   for key in bridgesToBuild:
     totalBridges = 0
     for key2 in bridgesToBuild:
       if key != key2:
         totalBridges += bridgesToBuild[key2]
-    print(f"total without {key} = {totalBridges}")
+    # print(f"total without {key} = {totalBridges}")
     if totalBridges < node.value:
-      print("CONNECTING " + key)
+      # print("CONNECTING " + key)
       node.connect(key, getInverseDirection(key), 1)
       bridgesToBuild[key] -= 1
 
-
-  # print(bridgesToBuild)
-  # if len(bridgesToBuild) == int(node.originalValue / 2 + 1):
-  #   for dir in bridgesToBuild:
-  #     node.connect(dir, getInverseDirection(dir), 1)
-  #   return True
-
 def finishNode(node: Node):
-  # debug(f"FINISHNODE: RUNNING ON {node}")
+  # print(f"FINISHNODE: RUNNING ON {node}")
   if not isinstance(node, Node) or node.value == 0: return
   bridgesToBuild = {}
   bridgeCount = 0
@@ -350,9 +310,8 @@ def finishNode(node: Node):
       bridgesToBuild[dir] = addition
       bridgeCount += addition
 
-  print(bridgeCount)
   if bridgeCount == node.value:
-    # debug(f"finishing {node}")
+    # print(f"finishing {node}")
     for dir in bridgesToBuild:
       node.connect(dir, getInverseDirection(dir), bridgesToBuild[dir])
     return True
@@ -376,10 +335,6 @@ def printBoard():
         line += " _ "
     print(line)
   print("")
-
-def debug(line):
-  if False:
-    print(line)
 
 def getInverseDirection(dir):
   if dir == "left": return "right"
