@@ -1,5 +1,4 @@
 from msilib.schema import RemoveIniFile
-import requests
 import tkinter
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -9,9 +8,12 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 HASHI_EASY_URL = "https://www.puzzle-bridges.com/"
 
+# The game board, used everywhere
 BOARD = []
-NODE_DISTANCE = 18 # Pixel distance between each node on the Hashi website
-
+# Helper list to iterate over all of a node's neighbors
+DIRECTIONS = ["left", "top", "right", "bottom"]
+# Pixel distance between each node on the Hashi website
+NODE_DISTANCE = 18
 
 def getBoardHTML(url, height, width):
   for i in range(height):
@@ -55,7 +57,6 @@ def getTopNeighbor(x, y):
     if BOARD[i][x]:
       return BOARD[i][x]
 
-
 def solve():
   for i in range(len(BOARD)):
     for j in range(len(BOARD[i])):
@@ -66,53 +67,27 @@ def finish4Node(node):
 
   print(f"RUNNING ON {node}")
 
-  # print(node.left)
-  # print(node.top)
-  # print(node.right)
-  # print(node.bottom)
-  neighbors = {}
+  # print(node.neighbors["left"])
+  # print(node.neighbors["top"])
+  # print(node.neighbors["right"])
+  # print(node.neighbors["bottom"])
+  bridgesToBuild = {}
   bridgeCount = 0
 
-  if node.left and node.left.value > 0 and node.left_bridge < 2:
-    addition = 1 if node.left_bridge == 1 else min(node.left.value, 2)
-    neighbors["left"] = [node.left, addition]
-    bridgeCount += addition
-
-  if node.top and node.top.value > 0 and node.top_bridge < 2:
-    addition = 1 if node.top_bridge == 1 else min(node.top.value, 2)
-    neighbors["top"] = [node.top, addition]
-    bridgeCount += addition
-
-  if node.right and node.right.value > 0 and node.right_bridge < 2:
-    addition = 1 if node.right_bridge == 1 else min(node.right.value, 2)
-    neighbors["right"] = [node.right, addition]
-    bridgeCount += addition
-
-  if node.bottom and node.bottom.value > 0 and node.bottom_bridge < 2:
-    addition = 1 if node.bottom_bridge == 1 else min(node.bottom.value, 2)
-    neighbors["bottom"] = [node.bottom, addition]
-    bridgeCount += addition
+  for dir in DIRECTIONS:
+    if node.neighbors[dir] and node.neighbors[dir].value > 0 and node.bridges[dir] < 2:
+      addition = 1 if node.bridges[dir] == 1 else min(node.neighbors[dir].value, 2)
+      bridgesToBuild[dir] = [node.neighbors[dir], addition]
+      bridgeCount += addition
 
   if bridgeCount == 4:
-    print("CAN SOLVE")
-    print(node)
+    # print("CAN SOLVE")
+    # print(node)
+    print(bridgesToBuild)
+    # for tuple in bridgesToBuild:
+      # node.
     return True
-
-  # if len(remainingNodes) == 2:
-  #   if remainingNodes.count("left") > 0:
-  #     node.connectLeft()
-  #   if remainingNodes.count("top") > 0:
-  #     node.connectTop()
-  #   if remainingNodes.count("right") > 0:
-  #     node.connectRight()
-  #   if remainingNodes.count("bottom") > 0:
-  #     node.connectBottom()
-
-def repeatForSides(node, function):
-  function(*node.left)
-  function(*node.top)
-  function(*node.right)
-  function(*node.bottom)
+  return False
 
 def printBoard():
   print("")
@@ -126,45 +101,49 @@ def printBoard():
     print(line)
   print("")
 
+def getInverseDirection(dir):
+  if dir == "left": return "right"
+  elif dir == "top": return "bottom"
+  elif dir == "right": return "left"
+  elif dir == "bottom": return "top"
+
 class Node:
   def __init__(self, value, x, y, left=None, top=None, right=None, bottom=None):
     self.value = value
     self.x = x
     self.y = y
 
-    self.left = left
-    self.top = top
-    self.right = right
-    self.bottom = bottom
+    self.neighbors = {
+      "left": left,
+      "top": top,
+      "right": right,
+      "bottom": bottom
+    }
 
-    self.left_bridge = 0
-    self.top_bridge = 0
-    self.right_bridge = 0
-    self.bottom_bridge = 0
+    self.bridges = {
+      "left": 0,
+      "top": 0,
+      "right": 0,
+      "bottom": 0
+    }
+
+  def connect(self, dir1, dir2, count):
+    self.bridges[dir1] = count # set this node's bridge
+    self.value -= count # decrease this node's count
+    self.neighbors[dir1].bridges[dir2] = count # set neighbor's bridge
+    self.neighbors[dir1].value -= count # set neighbor's value
 
   def connectLeft(self, count):
-    self.left_bridge = count
-    self.value -= count
-    self.left.right_bridge = count
-    self.left.value -= count
+    self.connect("left", "right", count)
 
   def connectTop(self, count):
-    self.top_bridge = count
-    self.value -= count
-    self.top.bottom_bridge = count
-    self.top.value -= count
+    self.connect("top", "bottom", count)
 
   def connectRight(self, count):
-    self.right_bridge = count
-    self.value -= count
-    self.right.left_bridge = count
-    self.right.value -= count
+    self.connect("right", "left", count)
 
   def connectBottom(self, count):
-    self.bottom_bridge = count
-    self.value -= count
-    self.bottom.top_bridge = count
-    self.bottom.value -= count
+    self.connect("bottom", "top", count)
 
   def __repr__(self) -> str:
     return f"{self.value} ({self.x}, {self.y})"
