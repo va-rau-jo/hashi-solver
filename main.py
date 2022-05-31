@@ -29,9 +29,16 @@ MOVES = []
 # Pixel distance between each node on the Hashi website
 NODE_DISTANCE = 18
 
+# UI Values
 BORDER = 10
-HEIGHT = 600
-WIDTH = 800
+DEFAULT_BRIDGE_COLOR = "black"
+RECENT_BRIDGE_COLOR = "green"
+FINISHED_BRIDGE_COLOR = "orange"
+HEIGHT = 800
+INCREMENT_X = 0 #(HEIGHT - 2 * BORDER) / (len(BOARD[0]) + 1)
+INCREMENT_Y = 0 #(HEIGHT - 2 * BORDER) / (len(BOARD) + 1)
+NODE_RADIUS = 0 #radius = INCREMENT_X / 2
+WIDTH = 1000
 
 window = tk.Tk()
 canvas = tk.Canvas(window, width=WIDTH, height=HEIGHT, bg="white")
@@ -165,6 +172,11 @@ def useSpecificBoard():
     [Node(2, 0, 6), None, None, Node(5, 3, 6), None, None, Node(4, 6, 6)]
   ]
 
+  global INCREMENT_X, INCREMENT_Y, NODE_RADIUS
+  INCREMENT_X = (HEIGHT - 2 * BORDER) / (len(BOARD[0]) + 1)
+  INCREMENT_Y = (HEIGHT - 2 * BORDER) / (len(BOARD) + 1)
+  NODE_RADIUS = INCREMENT_X / 2
+
   # Calculate neighbors
   for i in range(len(BOARD)):
     for j in range(len(BOARD[i])):
@@ -181,6 +193,11 @@ def useSpecificBoard():
 
 # Given a Hashi URL and height and width, initialize the game board with all available nodes.
 def getBoardHTML(url, height, width):
+  global INCREMENT_X, INCREMENT_Y, NODE_RADIUS
+  INCREMENT_X = (HEIGHT - 2 * BORDER) / (width + 1)
+  INCREMENT_Y = (HEIGHT - 2 * BORDER) / (height + 1)
+  NODE_RADIUS = INCREMENT_X / 2
+
   for i in range(height):
     BOARD.append([])
     for j in range(width):
@@ -441,118 +458,158 @@ def copyBoard(board):
 
 def nextButtonOnClick():
   global currentMoveIndex
-  if currentMoveIndex <= len(MOVES):
+
+  gameOver = currentMoveIndex == len(MOVES)
+  defaultColor = DEFAULT_BRIDGE_COLOR if not gameOver else FINISHED_BRIDGE_COLOR
+
+  if currentMoveIndex < len(MOVES):
+    drawNextMove(currentMoveIndex, defaultColor, RECENT_BRIDGE_COLOR)
     currentMoveIndex += 1
-    render()
+  elif currentMoveIndex == len(MOVES): # puzzle finished, all bridges are golden
+    for i in range(currentMoveIndex):
+      drawNextMove(i, defaultColor, FINISHED_BRIDGE_COLOR)
+    currentMoveIndex += 1
+
+def drawNextMove(i, defaultColor, recentColor):
+  if i < len(MOVES):
+    drawBridge(MOVES[i], recentColor)
+    drawNode(MOVES[i].x1, MOVES[i].y1)
+    drawNode(MOVES[i].x2, MOVES[i].y2)
+  if i > 0 and i < len(MOVES):
+    drawBridge(MOVES[i - 1], defaultColor)
+    drawNode(MOVES[i - 1].x1, MOVES[i - 1].y1)
+    drawNode(MOVES[i - 1].x2, MOVES[i - 1].y2)
 
 def prevButtonOnClick():
   global currentMoveIndex
+  defaultColor = DEFAULT_BRIDGE_COLOR
+  recentColor = RECENT_BRIDGE_COLOR
+
   if currentMoveIndex > 0:
     currentMoveIndex -= 1
-    if currentMoveIndex == len(MOVES):
-      drawBridge(MOVES[currentMoveIndex - 1], "white")
-    else:
-      drawBridge(MOVES[currentMoveIndex], "white")
-    render()
+
+  if currentMoveIndex == len(MOVES): # Undo all golden lines
+    for i in range(currentMoveIndex):
+      drawBridge(MOVES[i], defaultColor)
+    drawBridge(MOVES[i], recentColor)
+  elif currentMoveIndex >= 0:
+    move = MOVES[currentMoveIndex]
+    drawBridge(move, "white") # Erase previous line
+    if move.x1 != move.x2: # Draw horizontal gridlines
+      xmin = min(move.x1, move.x2)
+      xmax = max(move.x1, move.x2)
+      x1 = BORDER + INCREMENT_X * (xmin + 1) + NODE_RADIUS
+      x2 = BORDER + INCREMENT_X * (xmax + 1) - NODE_RADIUS
+      y = BORDER + INCREMENT_Y * (move.y1 + 1)
+      drawGridLine(x1, y, x2, y) # Redraw main gridline
+      for i in range(xmin, xmax): # Redraw crossing gridlines
+        x = BORDER + INCREMENT_X * (i + 1)
+        drawGridLine(x, y - 10, x, y + 10)
+    else: # Draw vertical gridlines
+      miny = min(move.y1, move.y2)
+      maxy = max(move.y1, move.y2)
+      y1 = BORDER + INCREMENT_Y * (miny + 1) + NODE_RADIUS
+      y2 = BORDER + INCREMENT_Y * (maxy + 1) - NODE_RADIUS
+      x = BORDER + INCREMENT_X * (move.x1 + 1)
+      drawGridLine(x, y1, x, y2) # Redraw main gridline
+      for i in range(miny, maxy): # Redraw crossing gridlines
+        y = BORDER + INCREMENT_Y * (i + 1)
+        drawGridLine(x - 10, y, x + 10, y)
+    # Redraw nodes
+    drawNode(move.x1, move.y1)
+    drawNode(move.x2, move.y2)
+
+    # Draw most recent bridge
+    if currentMoveIndex > 0:
+      drawBridge(MOVES[currentMoveIndex - 1], recentColor)
+
 
 def solveButtonOnClick():
   global currentMoveIndex
-  currentMoveIndex = len(MOVES) + 1
-  render()
+  currentMoveIndex = len(MOVES)
+  nextButtonOnClick()
 
 def clearButtonOnClick():
   global currentMoveIndex
-  for i in range(len(MOVES)):
-    drawBridge(MOVES[i], "white")
-  currentMoveIndex = 0
-  render()
+  for i in range(currentMoveIndex):
+    prevButtonOnClick()
 
 def render():
-  drawGrid(canvas)
+  drawGrid()
   drawNodes()
 
-  gameOver = currentMoveIndex > len(MOVES)
-  defaultColor = "black" if not gameOver else "gold"
-  prevColor = "green" if not gameOver else "gold"
+  gameOver = currentMoveIndex == len(MOVES)
+  defaultColor = DEFAULT_BRIDGE_COLOR if not gameOver else FINISHED_BRIDGE_COLOR
+  recentColor = RECENT_BRIDGE_COLOR if not gameOver else FINISHED_BRIDGE_COLOR
 
   for i in range(currentMoveIndex - 1):
     if i < len(MOVES):
       drawBridge(MOVES[i], defaultColor)
   if currentMoveIndex > 0 and currentMoveIndex <= len(MOVES):
-    drawBridge(MOVES[currentMoveIndex - 1], prevColor)
+    drawBridge(MOVES[currentMoveIndex - 1], recentColor)
 
   drawButtons()
 
-def drawBridge(move: Move, color="black"):
+def drawBridge(move: Move, color):
+  strokeWidth = max(int(NODE_RADIUS / 8), 3)
+  doubleSpace = max(int(NODE_RADIUS / 8), 2) # Space between a double bridge's 2 bridges
   if move.x1 != move.x2: # Draw horizontal bridge
-    increment = getXIncrement()
-    radius = increment / 3
     x1 = min(move.x1, move.x2)
     x2 = max(move.x1, move.x2)
-    x1 = BORDER + increment * (x1 + 1) + radius
-    x2 = BORDER + increment * (x2 + 1) - radius
-    y = BORDER + increment * (move.y1 + 1)
+    x1 = BORDER + INCREMENT_X * (x1 + 1) + NODE_RADIUS
+    x2 = BORDER + INCREMENT_X * (x2 + 1) - NODE_RADIUS
+    y = BORDER + INCREMENT_Y * (move.y1 + 1)
     if move.total == 1:
-      canvas.create_line(x1, y, x2, y, width=5, fill=color)
+      canvas.create_line(x1, y, x2, y, width=strokeWidth, fill=color)
     else:
-      canvas.create_line(x1, y, x2, y, width=5, fill="white")
-      canvas.create_line(x1, y - 5, x2, y - 5, width=5, fill=color)
-      canvas.create_line(x1, y + 5, x2, y + 5, width=5, fill=color)
+      canvas.create_line(x1, y, x2, y, width=strokeWidth, fill="white")
+      canvas.create_line(x1, y - doubleSpace, x2, y - doubleSpace, width=strokeWidth, fill=color)
+      canvas.create_line(x1, y + doubleSpace, x2, y + doubleSpace, width=strokeWidth, fill=color)
   else: # Draw vertical bridge
-    increment = getYIncrement()
-    radius = increment / 3
     y1 = min(move.y1, move.y2)
     y2 = max(move.y1, move.y2)
-    y1 = BORDER + increment * (y1 + 1) + radius
-    y2 = BORDER + increment * (y2 + 1) - radius
-    x = BORDER + increment * (move.x1 + 1)
+    y1 = BORDER + INCREMENT_Y * (y1 + 1) + NODE_RADIUS
+    y2 = BORDER + INCREMENT_Y * (y2 + 1) - NODE_RADIUS
+    x = BORDER + INCREMENT_X * (move.x1 + 1)
     if move.total == 1:
-      canvas.create_line(x, y1, x, y2, width=5, fill=color)
+      canvas.create_line(x, y1, x, y2, width=strokeWidth, fill=color)
     else:
-      canvas.create_line(x, y1, x, y2, width=5, fill="white")
-      canvas.create_line(x - 5, y1, x - 5, y2, width=5, fill=color)
-      canvas.create_line(x + 5, y1, x + 5, y2, width=5, fill=color)
+      canvas.create_line(x, y1, x, y2, width=strokeWidth, fill="white")
+      canvas.create_line(x - doubleSpace, y1, x - doubleSpace, y2, width=strokeWidth, fill=color)
+      canvas.create_line(x + doubleSpace, y1, x + doubleSpace, y2, width=strokeWidth, fill=color)
+
+def drawNode(x, y):
+  node = ORIGINAL_BOARD[y][x]
+  if isinstance(node, Node):
+    x1 = BORDER + INCREMENT_X * (x + 1) - NODE_RADIUS
+    y1 = BORDER + INCREMENT_Y * (y + 1) - NODE_RADIUS
+    x2 = x1 + 2 * NODE_RADIUS
+    y2 = y1 + 2 * NODE_RADIUS
+    width = max(int(NODE_RADIUS / 15), 2)
+    canvas.create_oval(x1, y1, x2, y2, fill="white", outline="black", width=width)
+    font = tkfont.Font(family="Arial", size=max(int(NODE_RADIUS / 1.5), 10), weight="normal", slant="roman")
+    canvas.create_text(x1 + NODE_RADIUS, y1 + NODE_RADIUS, font=font, text=node.value, justify=tk.CENTER)
 
 def drawNodes():
-  incrementX = getXIncrement()
-  incrementY = getYIncrement()
+  for y in range(-2, len(ORIGINAL_BOARD) + 2):
+    for x in range(-2, len(ORIGINAL_BOARD[0]) + 2):
+      if y >= 0 and x >= 0 and y < len(ORIGINAL_BOARD) and x < len(ORIGINAL_BOARD[y]):
+        drawNode(x, y)
 
+def drawGridLine(x1, y1, x2, y2):
+  canvas.create_line(x1, y1, x2, y2, fill="gray")
+
+def drawGrid():
   for i in range(-2, len(ORIGINAL_BOARD) + 2):
+    drawGridLine(BORDER,
+                 BORDER + INCREMENT_Y * i,
+                 HEIGHT - BORDER,
+                 BORDER + INCREMENT_Y * i)
     for j in range(-2, len(ORIGINAL_BOARD[0]) + 2):
-      if i >= 0 and j >= 0 and i < len(ORIGINAL_BOARD) and j < len(ORIGINAL_BOARD[i]):
-        node = ORIGINAL_BOARD[i][j]
-        if isinstance(node, Node):
-          radius = incrementX / 3
-          x1 = BORDER + incrementX * (j + 1) - radius
-          y1 = BORDER + incrementY * (i + 1) - radius
-          x2 = x1 + 2 * radius
-          y2 = y1 + 2 * radius
-          canvas.create_oval(x1, y1, x2, y2, fill="white", outline="black", width=2)
-          font = tkfont.Font(family="Times", size=int(radius / 1.5), weight="normal", slant="roman")
-          canvas.create_text(x1 + radius, y1 + radius, font=font, text=node.value, justify=tk.CENTER)
-
-def getXIncrement():
-  return (HEIGHT - 2 * BORDER) / (len(ORIGINAL_BOARD) + 1)
-
-def getYIncrement():
-  return (HEIGHT - 2 * BORDER) / (len(ORIGINAL_BOARD[0]) + 1)
-
-def drawGrid(canvas: tk.Canvas):
-  incrementX = getXIncrement()
-  incrementY = getYIncrement()
-
-  for i in range(-2, len(ORIGINAL_BOARD) + 2):
-    canvas.create_line(BORDER,
-                       BORDER + incrementY * i,
-                       HEIGHT - BORDER,
-                       BORDER + incrementY * i,
-                       fill="green")
-    for j in range(-2, len(ORIGINAL_BOARD[0]) + 2):
-      canvas.create_line(BORDER + incrementX * j,
-                         BORDER,
-                         BORDER + incrementX * j,
-                         HEIGHT - BORDER,
-                         fill="green")
+      drawGridLine(BORDER + INCREMENT_X * j,
+                   BORDER,
+                   BORDER + INCREMENT_X * j,
+                   HEIGHT - BORDER)
 
 def drawButtons():
   buttonWidth = 10
@@ -569,7 +626,7 @@ def drawButtons():
     font=font,
     command=prevButtonOnClick
   )
-  prev_button.place(x=600, y=275)
+  prev_button.place(x=WIDTH - 200, y=((HEIGHT / 2) - 25))
 
   next_button = tk.Button(
     text="Next Step",
@@ -580,7 +637,7 @@ def drawButtons():
     font=font,
     command=nextButtonOnClick
   )
-  next_button.place(x=700, y=275)
+  next_button.place(x=WIDTH - 100, y=((HEIGHT / 2) - 25))
 
   clear_button = tk.Button(
     text="Clear",
@@ -591,7 +648,7 @@ def drawButtons():
     font=font,
     command=clearButtonOnClick
   )
-  clear_button.place(x=600, y=325)
+  clear_button.place(x=WIDTH - 200, y=((HEIGHT / 2) + 25))
 
   solve_button = tk.Button(
     text="Solve",
@@ -602,13 +659,18 @@ def drawButtons():
     font=font,
     command=solveButtonOnClick
   )
-  solve_button.place(x=700, y=325)
+  solve_button.place(x=WIDTH - 100, y=int((HEIGHT / 2) + 25))
 
 if __name__ == "__main__":
-  if len(sys.argv) == 1:
-    getBoardHTML(HASHI_MONTHLY_URL_50x40, 50, 40)
-  else:
+  print(sys.argv)
+  if len(sys.argv) == 3:
+    print(sys.argv[0])
+    if sys.argv[0] == "size":
+      pass
+  if len(sys.argv) == 2:
     useSpecificBoard()
+  else:
+    getBoardHTML(HASHI_MONTHLY_URL_50x40, 50, 40)
 
   ORIGINAL_BOARD = copyBoard(BOARD)
   canvas.pack()
