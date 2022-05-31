@@ -13,9 +13,11 @@ HASHI_MONTHLY_URL_50x40 = "https://www.puzzle-bridges.com/?size=14"
 
 # The game board, used everywhere
 BOARD = []
+# Updated if a move is made. Used to detect when the game is over
 boardChanged = True
 # Helper list to iterate over all of a node's neighbors
 DIRECTIONS = ["left", "top", "right", "bottom"]
+# Ordered list of moves made
 MOVES = []
 # Pixel distance between each node on the Hashi website
 NODE_DISTANCE = 18
@@ -50,6 +52,7 @@ class Node:
     self.neighbors[dir1].bridges[dir2] += count # set neighbor's bridge
     self.neighbors[dir1].value -= count # set neighbor's value
 
+    # Draw the bridge between the two nodes
     if self.x != self.neighbors[dir1].x:
       startx = min(self.x, self.neighbors[dir1].x) + 1
       endx = max(self.x, self.neighbors[dir1].x)
@@ -62,13 +65,20 @@ class Node:
         BOARD[i][self.x] = "|" if self.bridges[dir1] == 1 else "H"
 
     MOVES.append(Move(self.x, self.y, self.neighbors[dir1].x, self.neighbors[dir1].y, count))
-    print(MOVES[-1])
-    printBoard()
+    # print(MOVES[-1])
+    # printBoard()
 
+  # Method to check if a node has a neighbor / that neighbor is reachable.
+  # If the neighbor is no longer reachable because of another bridge,
+  # it is deleted from the current node's neighbor list.
+  # Returns True if a valid neighbor is found, False otherwise.
   def hasNeighbor(self, dir):
     if not self.neighbors[dir]:
       return False
 
+    # If there is a bridge that intercepts the path
+    # between the neighbor, the node is considered to
+    # not have a neighbor anymore
     if self.x != self.neighbors[dir].x:
       startx = min(self.x, self.neighbors[dir].x) + 1
       endx = max(self.x, self.neighbors[dir].x)
@@ -93,6 +103,8 @@ class Node:
     self.neighbors[dir1].bridges[dir2] -= removed.value # set neighbor's bridge
     self.neighbors[dir1].value += removed.value # set neighbor's value
 
+    # Search between the two nodes and remove
+    # any bridges that might have been created
     if self.x != self.neighbors[dir1].x:
       startx = min(self.x, self.neighbors[dir1].x) + 1
       endx = max(self.x, self.neighbors[dir1].x)
@@ -119,6 +131,9 @@ class Move:
   def __repr__(self) -> str:
     return f"({self.x1}, {self.y1}) ({self.x2}, {self.y2}) => {self.value}"
 
+# Helper method to test specific boards since the Hashi website URL
+# does not update with the game board ids.
+# Should operate identically to getBoardHTML without using a ChromeDriver
 def useSpecificBoard():
   global BOARD
   BOARD = [
@@ -131,17 +146,21 @@ def useSpecificBoard():
     [Node(2, 0, 6), None, None, Node(5, 3, 6), None, None, Node(4, 6, 6)]
   ]
 
+  # Calculate neighbors
   for i in range(len(BOARD)):
     for j in range(len(BOARD[i])):
       node = BOARD[i][j]
       if isinstance(node, Node):
         node.neighbors["left"] = getLeftNeighbor(node.x - 1, node.y)
         node.neighbors["top"] = getTopNeighbor(node.x, node.y - 1)
+        # Add the current node to its neighbor's right neighbor field
         if node.neighbors["left"]:
           node.neighbors["left"].neighbors["right"] = node
+        # Add the current node to its neighbor's bottom neighbor field
         if node.neighbors["top"]:
           node.neighbors["top"].neighbors["bottom"]  = node
 
+# Given a Hashi URL and height and width, initialize the game board with all available nodes.
 def getBoardHTML(url, height, width):
   for i in range(height):
     BOARD.append([])
@@ -150,11 +169,11 @@ def getBoardHTML(url, height, width):
 
   chrome_options = Options()
   chrome_options.add_argument("--headless")
-
   driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
   driver.get(url)
-  # bridges = driver.find_element(by=By.CLASS_NAME, value="board-bridges").find_elements(by=By.CSS_SELECTOR, value="*")
-  nodes = driver.find_element(by=By.CLASS_NAME, value="board-tasks").find_elements(by=By.XPATH, value="*")
+  nodes = driver \
+            .find_element(by=By.CLASS_NAME, value="board-tasks") \
+            .find_elements(by=By.XPATH, value="*")
 
   for element in nodes:
     value = int(element.text)
@@ -173,19 +192,27 @@ def getBoardHTML(url, height, width):
       top.neighbors["bottom"]  = newNode
   driver.close()
 
+# Starts at (x, y) and searches left to see
+# if there is a node to the left of (x, y)
+# Returns that node if it is found, None otherwise
 def getLeftNeighbor(x, y):
   for i in range(x, -1, -1):
     if BOARD[y][i]:
       return BOARD[y][i]
 
+# Starts at (x, y) and searches up to see
+# if there is a node to above (x, y)
+# Returns that node if it is found, None otherwise
 def getTopNeighbor(x, y):
   for i in range(y, -1, -1):
     if BOARD[i][x]:
       return BOARD[i][x]
 
+# Main solver for the Hashi board.
+# Global BOARD and MOVE lists are updated with the solution
 def solve():
   global boardChanged
-  printBoard()
+  # printBoard()
 
   while boardChanged:
   # for i in range(1):
@@ -199,40 +226,47 @@ def solve():
               finishNode(node)
               dontDirectConnect1Or2Nodes(node)
               addPartialBridgesToNode(node)
-    # Ran after guaranteed checks
-    print("board stopped changing")
-    pathFound = False
+    # Continuity checks are ran after guaranteed checks
+    # since they are much more uncommon than guaranteed checks
+    bridgeMade = False
+    # print("board stopped changing")
     for i in range(len(BOARD)):
-      if pathFound: break
+      if bridgeMade: break # If a bridge is made, break out of larger for loop
       for j in range(len(BOARD[i])):
         node = BOARD[i][j]
         if checkForContinuity(node):
-          pathFound = True
+          bridgeMade = True
           break
 
   printBoard()
   print(MOVES)
   return BOARD
 
+# Checks for continuity starting at "node" since every
+# Hashi puzzle must have all nodes connected
+# Returns True if a bridge is created, False otherwise
 def checkForContinuity(node):
   if not isinstance(node, Node) or node.value != 1: return False
   possibleConnections = []
-  # iterate until we run out of full nodes
+  # Accumulate the possible bridges we can make
   for dir in DIRECTIONS:
     if node.hasNeighbor(dir) and node.bridges[dir] == 0:
       possibleConnections.append(dir)
 
   for connectionDir in possibleConnections:
-    print(f"testing continuity on {node}")
+    # test adding this bridge and see if we have continuity across all nodes
     node.connect(connectionDir, getInverseDirection(connectionDir), 1)
 
     emptyNodeFound = False
+    # Search graph until we find a non-complete node -> might preserve continuity
+    # or until we run out of nodes -> since it's not the last bridge, we don't have continuity
     nodes = []
     visited = [node]
     for dir in DIRECTIONS:
       if node.hasNeighbor(dir) and node.neighbors[dir].value == 0:
         nodes.append(node.neighbors[dir])
 
+    # iterate until we run out of full nodes
     while (not emptyNodeFound and len(nodes) != 0):
       curr = nodes.pop()
       visited.append(curr)
@@ -248,12 +282,12 @@ def checkForContinuity(node):
               emptyNodeFound = True
               break
 
+    # Undo bridge, if an empty node is found it might be added back later
     node.removeLastConnection(connectionDir, getInverseDirection(connectionDir))
     if not emptyNodeFound:
       possibleConnections.remove(connectionDir)
 
   if len(possibleConnections) == 1:
-    print(f"adding for continuity: {node}")
     node.connect(possibleConnections[0], getInverseDirection(possibleConnections[0]), 1)
     return True
   return False
@@ -261,23 +295,39 @@ def checkForContinuity(node):
 # Uses original value of node instead of node.value
 # If a 1 only has 1 non-one neighbor, connect it.
 # Solo 1's cannot connect to each other
+# Returns True if a bridge is created, False otherwise
 def dontDirectConnect1Or2Nodes(node):
   if not isinstance(node, Node): return
-  if (node.originalValue != 1 or node.value != 1) and (node.originalValue != 2 or node.value != 2): # pure 2
+  # Only valid for checking "pure" 1s or 2s (1s or 2s that have no active bridges)
+  if (node.originalValue != 1 or node.value != 1) and \
+     (node.originalValue != 2 or node.value != 2):
     return
 
+  # Search for any possible neighbors that do not include a pure 1 or 2.
+  # If this node is a pure 1, ignore other pure 1s.
+  # If this node is a pure 2, ignore other pure 2s.
   otherNeighbors = []
   for dir in DIRECTIONS:
     if node.hasNeighbor(dir):
-      if node.neighbors[dir].originalValue != node.originalValue or node.neighbors[dir].value != node.originalValue:
+      if node.neighbors[dir].originalValue != node.originalValue or \
+          node.neighbors[dir].value != node.originalValue:
         otherNeighbors.append(dir)
 
+  # If there is only one neighbor in the list,
+  # we must have at least 1 bridge connecting to them
   if len(otherNeighbors) == 1:
     print(f"connecting 1 to only possible {node}")
     node.connect(otherNeighbors[0], getInverseDirection(otherNeighbors[0]), 1)
     return True
   return False
 
+# If there are any guarantees for single bridges
+# starting from this node, add them.
+# Ex. A 5 with 3 neighbors must have at least 1 bridge
+# conencting each of them, so this method should detect that.
+# Similarly, a 4 with a 1 neighbor and 2 other neighbors must
+# have at least 1 bridge to each of those 2 other neighbors.
+# Returns True if a bridge is created, False otherwise
 def addPartialBridgesToNode(node: Node):
   if not isinstance(node, Node) or node.value == 0: return
   bridgesToBuild = {}
@@ -286,20 +336,22 @@ def addPartialBridgesToNode(node: Node):
     if node.hasNeighbor(dir) and node.neighbors[dir].value > 0 and node.bridges[dir] < 2:
       bridgesToBuild[dir] = min(min(2, node.neighbors[dir].value), 2 - node.bridges[dir])
 
-  print(bridgesToBuild)
+  bridgeAdded = False
   for key in bridgesToBuild:
     totalBridges = 0
     for key2 in bridgesToBuild:
       if key != key2:
         totalBridges += bridgesToBuild[key2]
-    # print(f"total without {key} = {totalBridges}")
     if totalBridges < node.value:
-      # print("CONNECTING " + key)
       node.connect(key, getInverseDirection(key), 1)
+      bridgeAdded = True
       bridgesToBuild[key] -= 1
+  return bridgeAdded
 
+# "Finishes" a nodes remaining bridges if all the possible bridges are guaranteed.
+# Ex. A 4 with 2 neighbors can be finished with 2 double bridges.
+# Returns True if a bridge is created, False otherwise
 def finishNode(node: Node):
-  # print(f"FINISHNODE: RUNNING ON {node}")
   if not isinstance(node, Node) or node.value == 0: return
   bridgesToBuild = {}
   bridgeCount = 0
@@ -311,7 +363,6 @@ def finishNode(node: Node):
       bridgeCount += addition
 
   if bridgeCount == node.value:
-    # print(f"finishing {node}")
     for dir in bridgesToBuild:
       node.connect(dir, getInverseDirection(dir), bridgesToBuild[dir])
     return True
@@ -336,6 +387,10 @@ def printBoard():
     print(line)
   print("")
 
+# Helper method to get the inverse to whatever direction is passed in.
+# Any operation on a node's neighbor should mutate the
+# neighbor in exactly the opposite way. Adding a left bridge
+# should add a right bridge to the neighbor, etc.
 def getInverseDirection(dir):
   if dir == "left": return "right"
   elif dir == "top": return "bottom"
