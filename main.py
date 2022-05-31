@@ -16,16 +16,25 @@ HASHI_MONTHLY_URL_50x40 = "https://www.puzzle-bridges.com/?size=14"
 
 # The game board, used everywhere
 BOARD = []
+ORIGINAL_BOARD = []
 # Updated if a move is made. Used to detect when the game is over
 boardChanged = True
+#
+currentMoveIndex = 0
+
 # Helper list to iterate over all of a node's neighbors
 DIRECTIONS = ["left", "top", "right", "bottom"]
 # Ordered list of moves made
 MOVES = []
 # Pixel distance between each node on the Hashi website
 NODE_DISTANCE = 18
+
+BORDER = 10
 HEIGHT = 600
 WIDTH = 800
+
+window = tk.Tk()
+canvas = tk.Canvas(window, width=WIDTH, height=HEIGHT, bg="white")
 
 class Node:
   def __init__(self, value, x, y, left=None, top=None, right=None, bottom=None) -> None:
@@ -48,6 +57,10 @@ class Node:
       "bottom": 0
     }
 
+  def copy(self):
+    # Neighbors will be reset since they will reference completely new nodes
+    return Node(self.value, self.x, self.y)
+
   def connect(self, dir1, dir2, count):
     global boardChanged
     boardChanged = True
@@ -69,7 +82,7 @@ class Node:
       for i in range(starty, endy):
         BOARD[i][self.x] = "|" if self.bridges[dir1] == 1 else "H"
 
-    MOVES.append(Move(self.x, self.y, self.neighbors[dir1].x, self.neighbors[dir1].y, count))
+    MOVES.append(Move(self.x, self.y, self.neighbors[dir1].x, self.neighbors[dir1].y, count, self.bridges[dir1]))
     # print(MOVES[-1])
     # printBoard()
 
@@ -120,18 +133,19 @@ class Node:
       endy = max(self.y, self.neighbors[dir1].y)
       for i in range(starty, endy):
         BOARD[i][self.x] = None
-    printBoard()
+    # printBoard()
 
   def __repr__(self) -> str:
     return f"{self.value} ({self.x}, {self.y})"
 
 class Move:
-  def __init__(self, x1, y1, x2, y2, value) -> None:
+  def __init__(self, x1, y1, x2, y2, value, total) -> None:
     self.x1 = x1
     self.y1 = y1
     self.x2 = x2
     self.y2 = y2
     self.value = value
+    self.total = total
 
   def __repr__(self) -> str:
     return f"({self.x1}, {self.y1}) ({self.x2}, {self.y2}) => {self.value}"
@@ -156,8 +170,8 @@ def useSpecificBoard():
     for j in range(len(BOARD[i])):
       node = BOARD[i][j]
       if isinstance(node, Node):
-        node.neighbors["left"] = getLeftNeighbor(node.x - 1, node.y)
-        node.neighbors["top"] = getTopNeighbor(node.x, node.y - 1)
+        node.neighbors["left"] = getLeftNeighbor(BOARD, node.x - 1, node.y)
+        node.neighbors["top"] = getTopNeighbor(BOARD, node.x, node.y - 1)
         # Add the current node to its neighbor's right neighbor field
         if node.neighbors["left"]:
           node.neighbors["left"].neighbors["right"] = node
@@ -187,8 +201,8 @@ def getBoardHTML(url, height, width):
     y = int(int(style.split("top: ")[1].split("px;")[0]) / NODE_DISTANCE)
     x = int(int(style.split("left: ")[1].split("px;")[0]) / NODE_DISTANCE)
 
-    left = getLeftNeighbor(x, y)
-    top = getTopNeighbor(x, y)
+    left = getLeftNeighbor(BOARD, x, y)
+    top = getTopNeighbor(BOARD, x, y)
     newNode = Node(value, x, y, left, top)
     BOARD[y][x] = newNode
     if left:
@@ -200,18 +214,18 @@ def getBoardHTML(url, height, width):
 # Starts at (x, y) and searches left to see
 # if there is a node to the left of (x, y)
 # Returns that node if it is found, None otherwise
-def getLeftNeighbor(x, y):
+def getLeftNeighbor(board, x, y):
   for i in range(x, -1, -1):
-    if BOARD[y][i]:
-      return BOARD[y][i]
+    if board[y][i]:
+      return board[y][i]
 
 # Starts at (x, y) and searches up to see
 # if there is a node to above (x, y)
 # Returns that node if it is found, None otherwise
-def getTopNeighbor(x, y):
+def getTopNeighbor(board, x, y):
   for i in range(y, -1, -1):
-    if BOARD[i][x]:
-      return BOARD[i][x]
+    if board[i][x]:
+      return board[i][x]
 
 # Main solver for the Hashi board.
 # Global BOARD and MOVE lists are updated with the solution
@@ -227,7 +241,7 @@ def solve():
         for j in range(len(BOARD[i])):
           node = BOARD[i][j]
           if isinstance(node, Node):
-              print(f"DOING {node}")
+              # print(f"DOING {node}")
               finishNode(node)
               dontDirectConnect1Or2Nodes(node)
               addPartialBridgesToNode(node)
@@ -243,8 +257,8 @@ def solve():
           bridgeMade = True
           break
 
-  printBoard()
-  print(MOVES)
+  # printBoard()
+  # print(MOVES)
   return BOARD
 
 # Checks for continuity starting at "node" since every
@@ -321,7 +335,7 @@ def dontDirectConnect1Or2Nodes(node):
   # If there is only one neighbor in the list,
   # we must have at least 1 bridge connecting to them
   if len(otherNeighbors) == 1:
-    print(f"connecting 1 to only possible {node}")
+    # print(f"connecting 1 to only possible {node}")
     node.connect(otherNeighbors[0], getInverseDirection(otherNeighbors[0]), 1)
     return True
   return False
@@ -402,62 +416,193 @@ def getInverseDirection(dir):
   elif dir == "right": return "left"
   elif dir == "bottom": return "top"
 
-def nextStep():
-  print("HI")
+def copyBoard(board):
+  copy = []
+  for i in range(len(board)):
+    copy.append([])
+    for j in range(len(board[i])):
+      copy[i].append(None)
 
-def prevStep():
-  print("HI")
+  for i in range(len(board)):
+    for j in range(len(board[i])):
+      oldNode = BOARD[i][j]
+      if isinstance(oldNode, Node):
+        node = oldNode.copy()
+        copy[i][j] = node
+        node.neighbors["left"] = getLeftNeighbor(copy, node.x - 1, node.y)
+        node.neighbors["top"] = getTopNeighbor(copy, node.x, node.y - 1)
+        # Add the current node to its neighbor's right neighbor field
+        if node.neighbors["left"]:
+          node.neighbors["left"].neighbors["right"] = node
+        # Add the current node to its neighbor's bottom neighbor field
+        if node.neighbors["top"]:
+          node.neighbors["top"].neighbors["bottom"]  = node
+  return copy
 
-def drawGrid(canvas: tk.Canvas):
-  border = 10
-  boardWidth = HEIGHT
-  boardHeight = HEIGHT
-  incrementX = (boardWidth - 2 * border) / (len(BOARD) + 1)
-  incrementY = (boardHeight - 2 * border) / (len(BOARD[0]) + 1)
+def nextButtonOnClick():
+  global currentMoveIndex
+  if currentMoveIndex <= len(MOVES):
+    currentMoveIndex += 1
+    render()
 
-  for i in range(-2, len(BOARD) + 2):
-    canvas.create_line(border, border + incrementY * i, boardWidth - border, border + incrementY * i)
-    for j in range(-2, len(BOARD[0]) + 2):
-      canvas.create_line(border + incrementX * j, border, border + incrementX * j, boardHeight - border)
+def prevButtonOnClick():
+  global currentMoveIndex
+  if currentMoveIndex > 0:
+    currentMoveIndex -= 1
+    if currentMoveIndex == len(MOVES):
+      drawBridge(MOVES[currentMoveIndex - 1], "white")
+    else:
+      drawBridge(MOVES[currentMoveIndex], "white")
+    render()
 
-  for i in range(-2, len(BOARD) + 2):
-    for j in range(-2, len(BOARD[0]) + 2):
-      if i >= 0 and j >= 0 and i < len(BOARD) and j < len(BOARD[i]):
-        node = BOARD[i][j]
+def solveButtonOnClick():
+  global currentMoveIndex
+  currentMoveIndex = len(MOVES) + 1
+  render()
+
+def clearButtonOnClick():
+  global currentMoveIndex
+  for i in range(len(MOVES)):
+    drawBridge(MOVES[i], "white")
+  currentMoveIndex = 0
+  render()
+
+def render():
+  drawGrid(canvas)
+  drawNodes()
+
+  gameOver = currentMoveIndex > len(MOVES)
+  defaultColor = "black" if not gameOver else "gold"
+  prevColor = "green" if not gameOver else "gold"
+
+  for i in range(currentMoveIndex - 1):
+    if i < len(MOVES):
+      drawBridge(MOVES[i], defaultColor)
+  if currentMoveIndex > 0 and currentMoveIndex <= len(MOVES):
+    drawBridge(MOVES[currentMoveIndex - 1], prevColor)
+
+  drawButtons()
+
+def drawBridge(move: Move, color="black"):
+  if move.x1 != move.x2: # Draw horizontal bridge
+    increment = getXIncrement()
+    radius = increment / 3
+    x1 = min(move.x1, move.x2)
+    x2 = max(move.x1, move.x2)
+    x1 = BORDER + increment * (x1 + 1) + radius
+    x2 = BORDER + increment * (x2 + 1) - radius
+    y = BORDER + increment * (move.y1 + 1)
+    if move.total == 1:
+      canvas.create_line(x1, y, x2, y, width=5, fill=color)
+    else:
+      canvas.create_line(x1, y, x2, y, width=5, fill="white")
+      canvas.create_line(x1, y - 5, x2, y - 5, width=5, fill=color)
+      canvas.create_line(x1, y + 5, x2, y + 5, width=5, fill=color)
+  else: # Draw vertical bridge
+    increment = getYIncrement()
+    radius = increment / 3
+    y1 = min(move.y1, move.y2)
+    y2 = max(move.y1, move.y2)
+    y1 = BORDER + increment * (y1 + 1) + radius
+    y2 = BORDER + increment * (y2 + 1) - radius
+    x = BORDER + increment * (move.x1 + 1)
+    if move.total == 1:
+      canvas.create_line(x, y1, x, y2, width=5, fill=color)
+    else:
+      canvas.create_line(x, y1, x, y2, width=5, fill="white")
+      canvas.create_line(x - 5, y1, x - 5, y2, width=5, fill=color)
+      canvas.create_line(x + 5, y1, x + 5, y2, width=5, fill=color)
+
+def drawNodes():
+  incrementX = getXIncrement()
+  incrementY = getYIncrement()
+
+  for i in range(-2, len(ORIGINAL_BOARD) + 2):
+    for j in range(-2, len(ORIGINAL_BOARD[0]) + 2):
+      if i >= 0 and j >= 0 and i < len(ORIGINAL_BOARD) and j < len(ORIGINAL_BOARD[i]):
+        node = ORIGINAL_BOARD[i][j]
         if isinstance(node, Node):
-          print(node)
           radius = incrementX / 3
-          x1 = border + incrementX * (j + 1) - radius
-          y1 = border + incrementY * (i + 1) - radius
+          x1 = BORDER + incrementX * (j + 1) - radius
+          y1 = BORDER + incrementY * (i + 1) - radius
           x2 = x1 + 2 * radius
           y2 = y1 + 2 * radius
           canvas.create_oval(x1, y1, x2, y2, fill="white", outline="black", width=2)
           font = tkfont.Font(family="Times", size=int(radius / 1.5), weight="normal", slant="roman")
           canvas.create_text(x1 + radius, y1 + radius, font=font, text=node.value, justify=tk.CENTER)
 
-def drawButtons():
-  buttonWidth = 15
-  buttonHeight = 5
+def getXIncrement():
+  return (HEIGHT - 2 * BORDER) / (len(ORIGINAL_BOARD) + 1)
 
-  next_button = tk.Button(
-    text="Next Step",
-    width=buttonWidth,
-    height=buttonHeight,
-    bg="blue",
-    fg="yellow",
-    command=prevStep
-  )
-  next_button.place(x=650, y=500)
+def getYIncrement():
+  return (HEIGHT - 2 * BORDER) / (len(ORIGINAL_BOARD[0]) + 1)
+
+def drawGrid(canvas: tk.Canvas):
+  incrementX = getXIncrement()
+  incrementY = getYIncrement()
+
+  for i in range(-2, len(ORIGINAL_BOARD) + 2):
+    canvas.create_line(BORDER,
+                       BORDER + incrementY * i,
+                       HEIGHT - BORDER,
+                       BORDER + incrementY * i,
+                       fill="green")
+    for j in range(-2, len(ORIGINAL_BOARD[0]) + 2):
+      canvas.create_line(BORDER + incrementX * j,
+                         BORDER,
+                         BORDER + incrementX * j,
+                         HEIGHT - BORDER,
+                         fill="green")
+
+def drawButtons():
+  buttonWidth = 10
+  buttonHeight = 2
+
+  font = tkfont.Font(family="Arial", size=10, weight="bold", slant="roman")
 
   prev_button = tk.Button(
     text="Prev Step",
     width=buttonWidth,
     height=buttonHeight,
-    bg="blue",
-    fg="yellow",
-    command=nextStep
+    bg="lightblue",
+    fg="black",
+    font=font,
+    command=prevButtonOnClick
   )
-  prev_button.place(x=525, y=500)
+  prev_button.place(x=600, y=275)
+
+  next_button = tk.Button(
+    text="Next Step",
+    width=buttonWidth,
+    height=buttonHeight,
+    bg="lightblue",
+    fg="black",
+    font=font,
+    command=nextButtonOnClick
+  )
+  next_button.place(x=700, y=275)
+
+  clear_button = tk.Button(
+    text="Clear",
+    width=buttonWidth,
+    height=buttonHeight,
+    bg="lightblue",
+    fg="black",
+    font=font,
+    command=clearButtonOnClick
+  )
+  clear_button.place(x=600, y=325)
+
+  solve_button = tk.Button(
+    text="Solve",
+    width=buttonWidth,
+    height=buttonHeight,
+    bg="lightblue",
+    fg="black",
+    font=font,
+    command=solveButtonOnClick
+  )
+  solve_button.place(x=700, y=325)
 
 if __name__ == "__main__":
   if len(sys.argv) == 1:
@@ -465,11 +610,9 @@ if __name__ == "__main__":
   else:
     useSpecificBoard()
 
-  window = tk.Tk()
-  canvas = tk.Canvas(window, width=WIDTH, height=HEIGHT, bg="white")
+  ORIGINAL_BOARD = copyBoard(BOARD)
   canvas.pack()
-  drawGrid(canvas)
-  drawButtons()
   solve()
+  render()
 
   tk.mainloop()
