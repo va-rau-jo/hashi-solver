@@ -1,4 +1,7 @@
-import tkinter
+import sys
+import tkinter as tk
+import tkinter.font as tkfont
+
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
@@ -21,6 +24,8 @@ DIRECTIONS = ["left", "top", "right", "bottom"]
 MOVES = []
 # Pixel distance between each node on the Hashi website
 NODE_DISTANCE = 18
+HEIGHT = 600
+WIDTH = 800
 
 class Node:
   def __init__(self, value, x, y, left=None, top=None, right=None, bottom=None) -> None:
@@ -397,10 +402,74 @@ def getInverseDirection(dir):
   elif dir == "right": return "left"
   elif dir == "bottom": return "top"
 
+def nextStep():
+  print("HI")
+
+def prevStep():
+  print("HI")
+
+def drawGrid(canvas: tk.Canvas):
+  border = 10
+  boardWidth = HEIGHT
+  boardHeight = HEIGHT
+  incrementX = (boardWidth - 2 * border) / (len(BOARD) + 1)
+  incrementY = (boardHeight - 2 * border) / (len(BOARD[0]) + 1)
+
+  for i in range(-2, len(BOARD) + 2):
+    canvas.create_line(border, border + incrementY * i, boardWidth - border, border + incrementY * i)
+    for j in range(-2, len(BOARD[0]) + 2):
+      canvas.create_line(border + incrementX * j, border, border + incrementX * j, boardHeight - border)
+
+  for i in range(-2, len(BOARD) + 2):
+    for j in range(-2, len(BOARD[0]) + 2):
+      if i >= 0 and j >= 0 and i < len(BOARD) and j < len(BOARD[i]):
+        node = BOARD[i][j]
+        if isinstance(node, Node):
+          print(node)
+          radius = incrementX / 3
+          x1 = border + incrementX * (j + 1) - radius
+          y1 = border + incrementY * (i + 1) - radius
+          x2 = x1 + 2 * radius
+          y2 = y1 + 2 * radius
+          canvas.create_oval(x1, y1, x2, y2, fill="white", outline="black", width=2)
+          font = tkfont.Font(family="Times", size=int(radius / 1.5), weight="normal", slant="roman")
+          canvas.create_text(x1 + radius, y1 + radius, font=font, text=node.value, justify=tk.CENTER)
+
+def drawButtons():
+  buttonWidth = 15
+  buttonHeight = 5
+
+  next_button = tk.Button(
+    text="Next Step",
+    width=buttonWidth,
+    height=buttonHeight,
+    bg="blue",
+    fg="yellow",
+    command=prevStep
+  )
+  next_button.place(x=650, y=500)
+
+  prev_button = tk.Button(
+    text="Prev Step",
+    width=buttonWidth,
+    height=buttonHeight,
+    bg="blue",
+    fg="yellow",
+    command=nextStep
+  )
+  prev_button.place(x=525, y=500)
+
 if __name__ == "__main__":
-  import sys
   if len(sys.argv) == 1:
     getBoardHTML(HASHI_MONTHLY_URL_50x40, 50, 40)
   else:
     useSpecificBoard()
+
+  window = tk.Tk()
+  canvas = tk.Canvas(window, width=WIDTH, height=HEIGHT, bg="white")
+  canvas.pack()
+  drawGrid(canvas)
+  drawButtons()
   solve()
+
+  tk.mainloop()
