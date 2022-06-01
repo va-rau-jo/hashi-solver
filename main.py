@@ -661,16 +661,72 @@ def drawButtons():
   )
   solve_button.place(x=WIDTH - 100, y=int((HEIGHT / 2) + 25))
 
+def getHashiSiteUrl(size, difficulty):
+  baseUrl = "https://www.puzzle-bridges.com/"
+  sizes = ["7x7", "10x10", "15x15", "25x25", "special"]
+  # Dailies are special easy, weeklies are special medium, monthlies are special hard
+  difficulties = ["easy", "medium", "hard"]
+
+  # For some reason the site has these values flipped ???
+  if size == "special" and difficulty == "easy":
+    return f"{baseUrl}?size=13"
+  if size == "special" and difficulty == "medium":
+    return f"{baseUrl}?size=12"
+
+  for i in range(len(sizes)):
+    for j in range(len(difficulties)):
+      if size == sizes[i] and difficulty == difficulties[j]:
+        if i == 0 and j == 0:
+          return baseUrl
+        return f"{baseUrl}?size={(i * len(difficulties) + j)}"
+
 if __name__ == "__main__":
-  print(sys.argv)
-  if len(sys.argv) == 3:
-    print(sys.argv[0])
-    if sys.argv[0] == "size":
-      pass
-  if len(sys.argv) == 2:
+  if "--test" in sys.argv:
     useSpecificBoard()
   else:
-    getBoardHTML(HASHI_MONTHLY_URL_50x40, 50, 40)
+    size = "7x7"
+    difficulty = "easy"
+    if len(sys.argv) >= 3:
+      try: # Try to get size argument
+        sizeIdx = sys.argv.index("--size")
+        size = sys.argv[sizeIdx + 1].lower()
+      except:
+        try:
+          sizeIdx = sys.argv.index("-s")
+          size = sys.argv[sizeIdx + 1].lower()
+        except:
+          pass # continue since size is by default 7x7 already
+      try: # Try to get difficulty argument
+        difficultyIdx = sys.argv.index("--difficulty")
+        difficulty = sys.argv[difficultyIdx + 1].lower()
+      except:
+        try:
+          difficultyIdx = sys.argv.index("-d")
+          difficulty = sys.argv[difficultyIdx + 1].lower()
+        except:
+          pass # continue since size is by default 7x7 already
+
+    url = getHashiSiteUrl(size, difficulty)
+    if not url:
+      print("\nERROR running program!\n")
+      print("Available sizes are 7x7, 10x10, 15x15, 25x25, or special")
+      print("Available difficulties are easy, medium, and hard")
+      print("  Ex. \"python main.py --size 7x7 --difficulty hard\"")
+      print("  or  \"python main.py -s special -d medium\"")
+      print("  or (defaults to 7x7 easy) \"python main.py\"")
+      sys.exit()
+
+    if "x" in size:
+      height = int(size.split("x")[0])
+      width = int(size.split("x")[1])
+    else: # Special
+      if difficulty == "easy":
+        height, width = 30, 30
+      elif difficulty == "medium":
+        height, width = 40, 30
+      else:
+        height, width = 50, 40
+    getBoardHTML(url, height, width)
 
   ORIGINAL_BOARD = copyBoard(BOARD)
   canvas.pack()
