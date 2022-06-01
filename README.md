@@ -2,6 +2,16 @@
 
 I made a solver for the popular puzzle game [Hashi](https://en.wikipedia.org/wiki/Hashiwokakero). The website I used to generate the games is [Puzzle Bridges](https://www.puzzle-bridges.com/). You can play some games here to familiarize yourself with the game.
 
+The board starts with no connections drawn and some nodes: ![Start of Hashi game](images/small1.PNG 'Start of game')
+
+Clicking on the "next step" button will make a move on the board, and display the most recently made move.
+
+![Middle of Hashi game](images/small2.PNG 'Middle of game')
+
+Once the puzzle is solved, the bridges will be highlighted to show it is completed.
+
+![Completed Hashi game](images/small3.PNG 'Completed game')
+
 # Rules
 
 ## Goal
@@ -29,6 +39,19 @@ This was developed entirely in Python and Tkinter was used for the UI.
 Functions were developed for all the rules. The solving algorithm repeatedly ran the basic rules on each node on the board until no change was made.
 
 Then, a check was made to see if any new bridge would break the continuity guarantee of the puzzle (single connected group). There must be at least one valid move at this point, and once that change is made, the base rules are ran again until completion or until another continuity check is required.
+
+# Most challenging puzzle
+
+The most challenging puzzle on the Hashi website is a 50x40 monthly puzzle. This is still solved extremely quickly by this program.
+
+Start:
+![Start of Hashi game](images/big1.PNG 'Start of game')
+
+Middle:
+![Middle of Hashi game](images/big2.PNG 'Middle of game')
+
+End:
+![Completed Hashi game](images/big3.PNG 'Completed game')
 
 # Run it yourself!
 
